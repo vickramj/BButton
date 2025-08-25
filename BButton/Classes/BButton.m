@@ -21,6 +21,7 @@
 
 #import "BButton.h"
 #import <CoreGraphics/CoreGraphics.h>
+#import <CoreText/CoreText.h>
 
 static CGFloat const kBButtonCornerRadiusV2 = 6.0f;
 static CGFloat const kBButtonCornerRadiusV3 = 4.0f;
@@ -48,6 +49,72 @@ static CGFloat const kBButtonCornerRadiusV3 = 4.0f;
 
 
 @implementation BButton
+
+#pragma mark - Font registration (SPM/CocoaPods compatibility)
+
+static void BBRegisterFontAwesomeIfNeeded(void) {
+    if ([UIFont fontWithName:kFontAwesomeFont size:12.0f] != nil) {
+        return;
+    }
+
+    NSURL *fontURL = nil;
+
+    // 1) Try main bundle (CocoaPods/manual integration)
+    fontURL = [[NSBundle mainBundle] URLForResource:@"FontAwesome" withExtension:@"ttf"];
+
+    // 2) Try resource sub-bundles inside main bundle (SwiftPM packages place resources here)
+    if (!fontURL) {
+        NSURL *resourcesURL = [[NSBundle mainBundle] resourceURL];
+        if (resourcesURL) {
+            NSArray<NSURL *> *contents = [[NSFileManager defaultManager]
+                                          contentsOfDirectoryAtURL:resourcesURL
+                                          includingPropertiesForKeys:nil
+                                          options:0
+                                          error:nil];
+            for (NSURL *candidate in contents) {
+                if ([[candidate pathExtension] isEqualToString:@"bundle"]) {
+                    NSBundle *sub = [NSBundle bundleWithURL:candidate];
+                    NSURL *u = [sub URLForResource:@"FontAwesome" withExtension:@"ttf"];
+                    if (u) { fontURL = u; break; }
+                }
+            }
+        }
+    }
+
+    // 3) Try bundle for this class (covers framework scenarios)
+    if (!fontURL) {
+        NSBundle *codeBundle = [NSBundle bundleForClass:[BButton class]];
+        fontURL = [codeBundle URLForResource:@"FontAwesome" withExtension:@"ttf"];
+        if (!fontURL && codeBundle.resourceURL) {
+            NSArray<NSURL *> *contents = [[NSFileManager defaultManager]
+                                          contentsOfDirectoryAtURL:codeBundle.resourceURL
+                                          includingPropertiesForKeys:nil
+                                          options:0
+                                          error:nil];
+            for (NSURL *candidate in contents) {
+                if ([[candidate pathExtension] isEqualToString:@"bundle"]) {
+                    NSBundle *sub = [NSBundle bundleWithURL:candidate];
+                    NSURL *u = [sub URLForResource:@"FontAwesome" withExtension:@"ttf"];
+                    if (u) { fontURL = u; break; }
+                }
+            }
+        }
+    }
+
+    if (!fontURL) { return; }
+
+    NSData *data = [NSData dataWithContentsOfURL:fontURL];
+    if (!data) { return; }
+
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
+    if (!provider) { return; }
+    CGFontRef cgFont = CGFontCreateWithDataProvider(provider);
+    if (cgFont) {
+        CTFontManagerRegisterGraphicsFont(cgFont, NULL);
+        CGFontRelease(cgFont);
+    }
+    CGDataProviderRelease(provider);
+}
 
 #pragma mark - Setup
 
@@ -116,6 +183,7 @@ static CGFloat const kBButtonCornerRadiusV3 = 4.0f;
 {
     self = [self initWithFrame:frame color:color style:style];
     if (self) {
+        BBRegisterFontAwesomeIfNeeded();
         [[self titleLabel] setFont:[UIFont fontWithName:kFontAwesomeFont size:fontSize]];
         [[self titleLabel] setTextAlignment:NSTextAlignmentCenter];
         [self setTitle:[NSString fa_stringForFontAwesomeIcon:icon]
@@ -236,6 +304,7 @@ static CGFloat const kBButtonCornerRadiusV3 = 4.0f;
 
 - (void)addAwesomeIcon:(FAIcon)icon beforeTitle:(BOOL)before
 {
+    BBRegisterFontAwesomeIfNeeded();
     NSString *iconString = [NSString fa_stringForFontAwesomeIcon:icon];
     self.titleLabel.font = [UIFont fontWithName:kFontAwesomeFont
                                            size:self.titleLabel.font.pointSize];
